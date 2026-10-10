@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TeleOCR · WebGPU</title>
+<style>
+  :root { --bg:#f6f6f3; --panel:#fff; --ink:#1d1d1b; --muted:#6b6b66; --line:#e2e1dc; --accent:#2d5bd7; --bad:#b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151514; --panel:#1e1e1c; --ink:#ecebe6; --muted:#9a9993; --line:#34332f; --accent:#7ea2ff; --bad:#ff8a80; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, sans-serif; }
+  main { max-width:1200px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .grid { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  select, input[type=text], textarea { width:100%; padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); font:inherit; }
+  textarea { min-height:60px; resize:vertical; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button { padding:8px 14px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button.secondary { background:transparent; color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .samples button { padding:4px 10px; font-size:12px; }
+  .stage { position:relative; margin-top:12px; border:1px dashed var(--line); border-radius:8px; min-height:160px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .stage img { max-width:100%; display:block; }
+  .stage svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #status { color:var(--muted); font-size:12px; min-height:18px; margin-top:8px; white-space:pre-wrap; }
+  #status.err { color:var(--bad); }
+  pre#out { white-space:pre-wrap; word-break:break-word; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:10px; min-height:200px; max-height:520px; overflow:auto; font:12.5px/1.5 ui-monospace, monospace; margin:0; }
+  #rendered { margin-top:12px; overflow-x:auto; }
+  #rendered table { border-collapse:collapse; font-size:12px; }
+  #rendered td { border:1px solid var(--line); padding:3px 6px; }
+  .stats { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:8px; }
+  .stats b { color:var(--ink); font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TeleOCR on WebGPU</h1>
+  <p class="sub">Document parsing (text, tables, formulas, layout) running fully in your browser with transformers.js + ONNX Runtime WebGPU.</p>
+  <div class="grid">
+    <section class="panel">
+      <div class="row samples" id="samples"></div>
+      <label for="file">Image</label>
+      <input type="file" id="file" accept="image/*">
+      <label for="task">Task</label>
+      <select id="task"></select>
+      <label for="prompt">Prompt</label>
+      <textarea id="prompt"></textarea>
+      <div class="row">
+        <div style="flex:1;min-width:150px"><label for="dtype">Precision</label>
+          <select id="dtype">
+            <option value="q4f16" selected>q4f16 (≈1.8 GB, fastest)</option>
+            <option value="fp16">fp16 (≈2.8 GB)</option>
+            <option value="fp32">fp32 (≈5.7 GB)</option>
+          </select></div>
+        <div style="flex:1;min-width:120px"><label for="maxnew">Max new tokens</label>
+          <input type="text" id="maxnew" value="2048"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="run">Run</button>
+        <button id="stop" class="secondary" disabled>Stop</button>
+      </div>
+      <div id="status"></div>
+      <div class="stage" id="stage"><span style="color:var(--muted)">Pick an image or a sample</span></div>
+    </section>
+    <section class="panel">
+      <label>Output</label>
+      <pre id="out"></pre>
+      <div class="stats" id="stats"></div>
+      <div id="rendered"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+import { AutoProcessor, Qwen2_5_VLForConditionalGeneration, RawImage, TextStreamer, InterruptableStoppingCriteria, env }
+  from '/web/node_modules/@huggingface/transformers/dist/transformers.min.js';
+import { resizeBicubicPIL, smartResize } from './pil_resize.js';
+
+const params = new URLSearchParams(location.search);
+const MODEL = params.get('model') ?? 'output';           // a local folder (served at /output) or a Hub repo id
+if (!params.get('model')) { env.allowLocalModels = true; env.allowRemoteModels = false; env.localModelPath = '/'; env.useBrowserCache = false; }
+// Use the bundled ORT-web build instead of the CDN copy.
+env.backends.onnx.wasm.wasmPaths = '/web/node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist/';
+
+const TASKS = {
+  text: ['Text', 'Please output the text content from the image.'],
+  table: ['Table (OTSL → HTML)', 'This is the image of a table. Please output the table in OTSL format.'],
+  formula: ['Formula (LaTeX)', 'Please write out the expression of the formula in the image using LaTeX format.'],
+  code: ['Code', 'The image contains a code snippet, please output the parsing result.'],
+  layout: ['Layout (resized to 1036²)', 'Analyze the image layout.'],
+  layout_distorted: ['Distorted layout (resized to 1036²)', '\nMulti-point Layout Segmentation Analysis.'],
+  figure: ['Scientific figure → table', 'This is a scientific figure. Please extract the table implied by this figure.'],
+};
+const SAMPLES = { text: 'text.png', table: 'table.png', formula: 'formula.png', code: 'code.png', layout: 'layout.jpg', figure: 'scientific_figure.png' };
+const SAMPLE_BASE = '/models/TeleOCR/assets/';
+const $ = (id) => document.getElementById(id);
+
+for (const [k, [label]] of Object.entries(TASKS)) $('task').add(new Option(label, k));
+$('task').onchange = () => { $('prompt').value = TASKS[$('task').value][1]; };
+$('task').onchange();
+for (const [task, file] of Object.entries(SAMPLES)) {
+  const b = document.createElement('button'); b.className = 'secondary'; b.textContent = task;
+  b.onclick = () => { $('task').value = task; $('task').onchange(); setImage(SAMPLE_BASE + file); };
+  $('samples').append(b);
+}
+
+let imageUrl = null;
+function setImage(url) {
+  imageUrl = url;
+  $('stage').innerHTML = `<img src="${url}" alt="input">`;
+}
+$('file').onchange = (e) => { const f = e.target.files[0]; if (f) setImage(URL.createObjectURL(f)); };
+
+function status(msg, err = false) { $('status').textContent = msg; $('status').className = err ? 'err' : ''; }
+
+let loaded = null, processor = null, model = null;
+async function load(dtype) {
+  if (loaded === dtype) return;
+  if (model) { await model.dispose(); model = null; }
+  if (!navigator.gpu) throw new Error('WebGPU is not available in this browser.');
+  const t0 = performance.now();
+  const progress = {};
+  processor ??= await AutoProcessor.from_pretrained(MODEL);
+  model = await Qwen2_5_VLForConditionalGeneration.from_pretrained(MODEL, {
+    device: 'webgpu', dtype,
+    progress_callback: (p) => {
+      if (p.status === 'progress' && p.total) { progress[p.file] = [p.loaded, p.total];
+        const [l, t] = Object.values(progress).reduce((a, [x, y]) => [a[0] + x, a[1] + y], [0, 0]);
+        status(`Downloading ${dtype} weights… ${(l / 1e6).toFixed(0)} / ${(t / 1e6).toFixed(0)} MB`); }
+    },
+  });
+  loaded = dtype;
+  status(`Loaded ${dtype} in ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+}
+
+const stopper = new InterruptableStoppingCriteria();
+$('stop').onclick = () => stopper.interrupt();
+
+async function run({ task = $('task').value, prompt = $('prompt').value, dtype = $('dtype').value, maxNew = +$('maxnew').value, url = imageUrl } = {}) {
+  if (!url) throw new Error('Pick an image first.');
+  $('run').disabled = true; $('stop').disabled = false; $('out').textContent = ''; $('rendered').innerHTML = ''; $('stats').innerHTML = '';
+  stopper.reset();
+  try {
+    await load(dtype);
+    const image = await loadImageLikePIL(url, task.startsWith('layout') ? [1036, 1036] : null);
+    const messages = [
+      { role: 'system', content: 'You are a helpful assistant.' },
+      { role: 'user', content: [{ type: 'image' }, { type: 'text', text: prompt }] },
+    ];
+    const text = processor.apply_chat_template(messages, { add_generation_prompt: true });
+    const inputs = await processor(text, image);
+    const imgTokens = Number(inputs.image_grid_thw.data[1] * inputs.image_grid_thw.data[2]) / 4;
+    status(`Encoding image (${imgTokens} visual tokens)…`);
+    let t0 = performance.now(), tFirst = null, n = 0;
+    const streamer = new TextStreamer(processor.tokenizer, {
+      skip_prompt: true, skip_special_tokens: true,
+      callback_function: (s) => { $('out').textContent += s; },
+      token_callback_function: () => { n++; if (tFirst === null) { tFirst = performance.now(); status('Generating…'); } },
+    });
+    const out = await model.generate({ ...inputs, max_new_tokens: maxNew, do_sample: false, streamer, stopping_criteria: stopper });
+    const t1 = performance.now();
+    const ids = out.slice(null, [inputs.input_ids.dims[1], null]);
+    const result = processor.batch_decode(ids, { skip_special_tokens: true })[0].trim();
+    $('out').textContent = result;
+    const decodeRate = n > 1 ? (n - 1) / ((t1 - tFirst) / 1000) : 0;
+    const stats = { 'visual tokens': imgTokens, 'prompt tokens': inputs.input_ids.dims[1], 'time to first token': `${((tFirst - t0) / 1000).toFixed(2)} s`,
+      'new tokens': n, 'decode': `${decodeRate.toFixed(1)} tok/s`, 'total': `${((t1 - t0) / 1000).toFixed(2)} s` };
+    $('stats').innerHTML = Object.entries(stats).map(([k, v]) => `<span>${k}: <b>${v}</b></span>`).join('');
+    status('Done.');
+    render(task, result);
+    return { result, stats };
+  } catch (e) { status(String(e?.message ?? e), true); throw e; }
+  finally { $('run').disabled = false; $('stop').disabled = true; }
+}
+$('run').onclick = () => run().catch(console.error);
+
+// ---- preprocessing --------------------------------------------------------------------------
+// Decode without colour management (PIL ignores ICC profiles), drop alpha like PIL's convert('RGB'),
+// then resize with a bit-exact port of PIL's bicubic filter to the size Qwen2-VL's smart_resize picks.
+// transformers.js would otherwise resize through canvas (no bicubic, no antialiasing), which changes
+// TeleOCR's output noticeably.
+async function loadImageLikePIL(url, preResize) {
+  const blob = await (await fetch(url)).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+  const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+  const ctx = canvas.getContext('2d', { colorSpace: 'srgb' });
+  ctx.drawImage(bmp, 0, 0);
+  const rgba = ctx.getImageData(0, 0, bmp.width, bmp.height).data;
+  let w = bmp.width, h = bmp.height;
+  let rgb = new Uint8ClampedArray(w * h * 3);
+  for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) { rgb[j] = rgba[i]; rgb[j + 1] = rgba[i + 1]; rgb[j + 2] = rgba[i + 2]; }
+  if (preResize) { rgb = resizeBicubicPIL(rgb, w, h, 3, preResize[0], preResize[1]); [w, h] = preResize; }
+  const ip = processor.image_processor;
+  const [h2, w2] = smartResize(h, w, ip.patch_size * ip.merge_size, ip.min_pixels, ip.max_pixels);
+  if (h2 !== h || w2 !== w) { rgb = resizeBicubicPIL(rgb, w, h, 3, w2, h2); [w, h] = [w2, h2]; }
+  return new RawImage(rgb, w, h, 3);
+}
+
+// ---- rendering helpers -----------------------------------------------------------------------
+function render(task, s) {
+  if (task === 'table' || task === 'figure') $('rendered').innerHTML = otslToHtml(s);
+  if (task.startsWith('layout')) drawBoxes(s);
+}
+function drawBoxes(s) {
+  const img = $('stage').querySelector('img'); if (!img) return;
+  const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 1000 1000'); svg.setAttribute('preserveAspectRatio', 'none');
+  svg.style.width = img.clientWidth + 'px'; svg.style.height = img.clientHeight + 'px'; svg.style.inset = 'auto';
+  const colors = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#9a6324'];
+  const labels = {};
+  for (const m of s.matchAll(/<box:(\d+) (\d+) (\d+) (\d+)><label:([^>]+)>/g)) {
+    const [x1, y1, x2, y2] = m.slice(1, 5).map(Number), label = m[5];
+    labels[label] ??= colors[Object.keys(labels).length % colors.length];
+    const r = document.createElementNS(ns, 'rect');
+    Object.entries({ x: x1, y: y1, width: x2 - x1, height: y2 - y1, fill: 'none', stroke: labels[label], 'stroke-width': 3, 'vector-effect': 'non-scaling-stroke' })
+      .forEach(([k, v]) => r.setAttribute(k, v));
+    const t = document.createElementNS(ns, 'title'); t.textContent = label; r.append(t); svg.append(r);
+  }
+  $('stage').style.display = 'block'; $('stage').append(svg);
+  $('rendered').innerHTML = Object.entries(labels).map(([l, c]) => `<span style="color:${c};margin-right:12px">■ ${l}</span>`).join('');
+}
+// OTSL -> HTML (port of the converter in the TeleOCR README)
+function otslToHtml(otsl) {
+  if (otsl.startsWith('<table')) return otsl;
+  const T = ['<nl>', '<fcel>', '<ecel>', '<lcel>', '<ucel>', '<xcel>'];
+  const re = new RegExp('(' + T.map((t) => t.replace(/[<>]/g, (c) => '\\' + c)).join('|') + ')');
+  const parts = otsl.split(re).filter((p) => p.trim());
+  const tokens = parts.filter((p) => T.includes(p));
+  const rows = []; let cur = [];
+  for (const t of tokens) { if (t === '<nl>') { if (cur.length) rows.push(cur); cur = []; } else cur.push(t); }
+  if (cur.length) rows.push(cur);
+  if (!rows.length) return '';
+  const W = Math.max(...rows.map((r) => r.length)); rows.forEach((r) => { while (r.length < W) r.push('<ecel>'); });
+  const esc = (x) => x.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const cells = []; let r = 0, c = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p === '<fcel>' || p === '<ecel>') {
+      let text = '', off = 1;
+      if (p !== '<ecel>' && i + 1 < parts.length && !T.includes(parts[i + 1])) { text = parts[i + 1].trim(); off = 2; }
+      const nextRight = parts[i + off] ?? '';
+      const nextDown = rows[r + 1]?.[c] ?? '';
+      let cs = 1, rs = 1;
+      if (nextRight === '<lcel>' || nextRight === '<xcel>') { let k = c + 1; while (k < W && ['<lcel>', '<xcel>'].includes(rows[r][k])) { cs++; k++; } }
+      if (nextDown === '<ucel>' || nextDown === '<xcel>') { let k = r + 1; while (k < rows.length && ['<ucel>', '<xcel>'].includes(rows[k][c])) { rs++; k++; } }
+      cells.push({ r, c, rs, cs, text });
+    }
+    if (['<fcel>', '<ecel>', '<lcel>', '<ucel>', '<xcel>'].includes(p)) c++;
+    else if (p === '<nl>') { r++; c = 0; }
+  }
+  const byPos = new Map(cells.map((x) => [`${x.r},${x.c}`, x]));
+  let html = '<table>';
+  for (let i = 0; i < rows.length; i++) {
+    html += '<tr>';
+    for (let j = 0; j < W; j++) { const x = byPos.get(`${i},${j}`); if (x) html += `<td${x.rs > 1 ? ` rowspan="${x.rs}"` : ''}${x.cs > 1 ? ` colspan="${x.cs}"` : ''}>${esc(x.text)}</td>`; }
+    html += '</tr>';
+  }
+  return html + '</table>';
+}
+
+window.teleocr = { run, setImage, load, loadImageLikePIL };  // for automated testing
+status(navigator.gpu ? 'Ready. Weights download on first run.' : 'WebGPU is not available in this browser.', !navigator.gpu);
+</script>
+</body>
+</html>

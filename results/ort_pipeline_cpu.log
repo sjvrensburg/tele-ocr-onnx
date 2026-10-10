@@ -1,0 +1,17 @@
+glue text     pixel_values=OK grid=OK input_ids=OK position_ids=OK
+glue formula  pixel_values=OK grid=OK input_ids=OK position_ids=OK
+glue table    pixel_values=OK grid=OK input_ids=OK position_ids=OK
+glue layout   pixel_values=OK grid=OK input_ids=OK position_ids=OK
+gen  fp32   text     exact=True  {'visual_tokens': 238, 'prompt_tokens': 268, 'new_tokens': 65, 'time_to_first_token_s': 1.011, 'decode_tok_per_s': 26.6}
+gen  fp32   formula  exact=True  {'visual_tokens': 464, 'prompt_tokens': 500, 'new_tokens': 165, 'time_to_first_token_s': 1.714, 'decode_tok_per_s': 24.5}
+gen  fp32   table    exact=True  {'visual_tokens': 102, 'prompt_tokens': 140, 'new_tokens': 282, 'time_to_first_token_s': 0.592, 'decode_tok_per_s': 16.7}
+gen  fp32   layout   exact=True  {'visual_tokens': 1369, 'prompt_tokens': 1396, 'new_tokens': 512, 'time_to_first_token_s': 8.71, 'decode_tok_per_s': 9.4}
+gen  fp16   text     exact=True  {'visual_tokens': 238, 'prompt_tokens': 268, 'new_tokens': 65, 'time_to_first_token_s': 2.2, 'decode_tok_per_s': 21.8}
+gen  fp16   formula  exact=True  {'visual_tokens': 464, 'prompt_tokens': 500, 'new_tokens': 165, 'time_to_first_token_s': 2.294, 'decode_tok_per_s': 3.7}
+gen  fp16   table    exact=True  {'visual_tokens': 102, 'prompt_tokens': 140, 'new_tokens': 282, 'time_to_first_token_s': 2.991, 'decode_tok_per_s': 3.2}
+gen  fp16   layout   exact=True  {'visual_tokens': 1369, 'prompt_tokens': 1396, 'new_tokens': 512, 'time_to_first_token_s': 29.584, 'decode_tok_per_s': 5.3}
+gen  q4f16  text     exact=True  {'visual_tokens': 238, 'prompt_tokens': 268, 'new_tokens': 65, 'time_to_first_token_s': 2.827, 'decode_tok_per_s': 4.1}
+gen  q4f16  formula  exact=True  {'visual_tokens': 464, 'prompt_tokens': 500, 'new_tokens': 165, 'time_to_first_token_s': 4.272, 'decode_tok_per_s': 7.4}
+gen  q4f16  table    exact=True  {'visual_tokens': 102, 'prompt_tokens': 140, 'new_tokens': 282, 'time_to_first_token_s': 0.895, 'decode_tok_per_s': 4.6}
+gen  q4f16  layout   exact=True  {'visual_tokens': 1369, 'prompt_tokens': 1396, 'new_tokens': 512, 'time_to_first_token_s': 12.327, 'decode_tok_per_s': 14.2}
+EXIT 0

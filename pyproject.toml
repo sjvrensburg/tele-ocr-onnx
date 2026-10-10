@@ -1,0 +1,26 @@
+[project]
+name = "tele-ocr-onnx"
+version = "0.1.0"
+description = "ONNX / WebGPU conversion of XingChen-AGI/TeleOCR for transformers.js and onnxruntime-web"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.3",
+    "onnx>=1.23.1",
+    "onnx-ir>=1.0.0",
+    "onnxruntime>=1.30.0",
+    "onnxruntime-genai==0.17.1",
+    "pillow>=12.3.0",
+    "safetensors>=0.8.0",
+    "torch==2.8.*",
+    "torchvision>=0.23.0",
+    "transformers==4.57.1",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }

@@ -1,0 +1,100 @@
+++ .venv/bin/python scripts/verify_decoder.py
+prefill    max|diff|=2.384e-05  cos=[1. 1.]  argmax_match=True
+present.0.key max|diff|=0.0001068
+present.27.key max|diff|=4.959e-05
+decode     max|diff|=2.378e-05  cos=[1. 1.]  argmax_match=True
+++ .venv/bin/python scripts/verify_vision.py
+OK  text                                       (238, 1024)    min_cos=1.000000 mean_cos=1.000000 rel_max_err=3.54e-06  vs golden max|d|=0.00e+00
+OK  formula                                    (464, 1024)    min_cos=1.000000 mean_cos=1.000000 rel_max_err=9.20e-06  vs golden max|d|=0.00e+00
+OK  table                                      (102, 1024)    min_cos=1.000000 mean_cos=1.000000 rel_max_err=3.99e-05  vs golden max|d|=0.00e+00
+OK  layout                                     (1369, 1024)   min_cos=1.000000 mean_cos=1.000000 rel_max_err=2.39e-05  vs golden max|d|=0.00e+00
+OK  synthetic[[1, 6, 10]]                      (15, 1024)     min_cos=1.000000 mean_cos=1.000000 rel_max_err=7.92e-07
+OK  synthetic[[1, 18, 2]]                      (9, 1024)      min_cos=1.000000 mean_cos=1.000000 rel_max_err=2.40e-06
+OK  synthetic[[1, 2, 2]]                       (1, 1024)      min_cos=1.000000 mean_cos=1.000000 rel_max_err=7.66e-06
+OK  synthetic[[1, 10, 6], [1, 4, 22], [1, 16, 16]] (101, 1024)    min_cos=1.000000 mean_cos=1.000000 rel_max_err=2.89e-05
+++ cd web
+++ node verify_webgpu.mjs --vision fp32 _fp16 _q4f16 --decoder fp32 _fp16 _q4f16 --max-new 64
+Warning: maxDynamicUniformBuffersPerPipelineLayout artificially reduced from 507904 to 16 to fit dynamic offset allocation limit.
+Warning: maxDynamicStorageBuffersPerPipelineLayout artificially reduced from 507904 to 16 to fit dynamic offset allocation limit.
+OK  vision(fp32) formula  grid=1x32x58 feats=464 min_cos=1.000000 mean_cos=1.000000  631ms first / 603ms warm
+OK  vision(fp32) layout   grid=1x74x74 feats=1369 min_cos=1.000000 mean_cos=1.000000  2034ms first / 2023ms warm
+OK  vision(fp32) table    grid=1x12x34 feats=102 min_cos=1.000000 mean_cos=1.000000  146ms first / 144ms warm
+OK  vision(fp32) text     grid=1x14x68 feats=238 min_cos=1.000000 mean_cos=1.000000  314ms first / 314ms warm
+OK  vision_fp16 formula  grid=1x32x58 feats=464 min_cos=0.974752 mean_cos=0.999572  370ms first / 343ms warm
+OK  vision_fp16 layout   grid=1x74x74 feats=1369 min_cos=0.918823 mean_cos=0.999731  1377ms first / 1358ms warm
+OK  vision_fp16 table    grid=1x12x34 feats=102 min_cos=0.983577 mean_cos=0.998686  88ms first / 87ms warm
+OK  vision_fp16 text     grid=1x14x68 feats=238 min_cos=0.997666 mean_cos=0.999796  175ms first / 171ms warm
+OK  vision_q4f16 formula  grid=1x32x58 feats=464 min_cos=0.974752 mean_cos=0.999572  384ms first / 338ms warm
+OK  vision_q4f16 layout   grid=1x74x74 feats=1369 min_cos=0.918823 mean_cos=0.999731  1363ms first / 1376ms warm
+OK  vision_q4f16 table    grid=1x12x34 feats=102 min_cos=0.983577 mean_cos=0.998686  87ms first / 86ms warm
+OK  vision_q4f16 text     grid=1x14x68 feats=238 min_cos=0.997666 mean_cos=0.999796  172ms first / 170ms warm
+OK  decoder(fp32) formula  S=500 prefill_cos=0.999990 argmax match greedy prefix match 64/64 (golden len 166)  prefill 286ms, 113.2ms/token
+OK  decoder(fp32) layout   S=1396 prefill_cos=1.000000 argmax match greedy prefix match 64/64 (golden len 512)  prefill 765ms, 257.4ms/token
+OK  decoder(fp32) table    S=140 prefill_cos=0.999983 argmax match greedy prefix match 64/64 (golden len 283)  prefill 76ms, 56.7ms/token
+OK  decoder(fp32) text     S=268 prefill_cos=0.999973 argmax match greedy prefix match 64/64 (golden len 66)  prefill 110ms, 75.1ms/token
+OK  decoder_fp16 formula  S=500 prefill_cos=0.999811 argmax match greedy prefix match 64/64 (golden len 166)  prefill 151ms, 64.6ms/token
+OK  decoder_fp16 layout   S=1396 prefill_cos=0.999966 argmax match greedy prefix match 64/64 (golden len 512)  prefill 322ms, 123.1ms/token
+OK  decoder_fp16 table    S=140 prefill_cos=0.999930 argmax match greedy prefix match 64/64 (golden len 283)  prefill 53ms, 49.7ms/token
+OK  decoder_fp16 text     S=268 prefill_cos=0.999944 argmax match greedy prefix match 64/64 (golden len 66)  prefill 70ms, 54.3ms/token
+OK  decoder_q4f16 formula  S=500 prefill_cos=0.838858 argmax match greedy prefix match 64/64 (golden len 166)  prefill 156ms, 52.1ms/token
+OK  decoder_q4f16 layout   S=1396 prefill_cos=0.996655 argmax match greedy prefix match 64/64 (golden len 512)  prefill 313ms, 111.4ms/token
+OK  decoder_q4f16 table    S=140 prefill_cos=0.993083 argmax match greedy prefix match 64/64 (golden len 283)  prefill 38ms, 27.9ms/token
+OK  decoder_q4f16 text     S=268 prefill_cos=0.992083 argmax match greedy prefix match 64/64 (golden len 66)  prefill 54ms, 34.3ms/token
+++ node placement_report.mjs ../output/onnx/decoder_model_merged.onnx ../output/onnx/decoder_model_merged_fp16.onnx ../output/onnx/decoder_model_merged_q4f16.onnx ../output/onnx/embed_tokens.onnx ../output/onnx/embed_tokens_fp16.onnx ../output/onnx/embed_tokens_q4f16.onnx ../output/onnx/vision_encoder.onnx ../output/onnx/vision_encoder_fp16.onnx ../output/onnx/vision_encoder_q4f16.onnx
+decoder_model_merged.onnx            CPU nodes: 15  {"ReduceSum":1,"Sub":2,"Cast":4,"Gather":4,"Shape":1,"Expand":1,"Concat":1,"Some":1}
+decoder_model_merged_fp16.onnx       CPU nodes: 14  {"ReduceSum":1,"Sub":2,"Cast":4,"Gather":4,"Shape":1,"Expand":1,"Concat":1}
+decoder_model_merged_q4f16.onnx      CPU nodes: 14  {"ReduceSum":1,"Sub":2,"Cast":4,"Gather":4,"Shape":1,"Expand":1,"Concat":1}
+embed_tokens.onnx                    CPU nodes: 0  {}
+embed_tokens_fp16.onnx               CPU nodes: 0  {}
+embed_tokens_q4f16.onnx              CPU nodes: 0  {}
+vision_encoder.onnx                  CPU nodes: 14  {"Cast":3,"Gather":2,"Shape":1,"Unsqueeze":1,"Concat":6,"Some":1}
+vision_encoder_fp16.onnx             CPU nodes: 14  {"Cast":3,"Gather":2,"Shape":1,"Unsqueeze":1,"Concat":6,"Some":1}
+vision_encoder_q4f16.onnx            CPU nodes: 14  {"Cast":3,"Gather":2,"Shape":1,"Unsqueeze":1,"Concat":6,"Some":1}
+++ for d in fp32 fp16 q4f16
+++ node browser_test.mjs --dtype fp32 --samples text table formula layout code figure --out ../results/browser_fp32.json
+[console.error] Failed to load resource: the server responded with a status of 404 (File not found)
+browser: Chrome/154.0.8037.97 {"webgpu":true,"vendor":"amd","arch":"rdna-3","description":"","f16":true,"maxBuffer":4294967292,"maxStorageBinding":4294967292,"maxStorageBuffersPerStage":16}
+== text: {"visual tokens":238,"prompt tokens":268,"time to first token":"0.56 s","new tokens":66,"decode":"24.1 tok/s","total":"3.25 s"}  vs PyTorch: exact=true NED=0.0000
+   Hybrid methods may be required to solve particularly difficult real-world optimization problems. Implementation of hybrid methods typically requires non-trivial
+== table: {"visual tokens":102,"prompt tokens":140,"time to first token":"0.22 s","new tokens":283,"decode":"25.5 tok/s","total":"11.27 s"}  vs PyTorch: exact=false NED=0.0023
+   <fcel>表8 出厂检验和型式检验项目<lcel><lcel><lcel><lcel><nl><fcel>要求的条文指标名称<lcel><fcel>对位的试验方法条文<fcel>出厂检验<fcel>型式检验<nl><fcel>4.1 外现<lcel><fcel>5.1 外观检查<fcel>√<fcel>√<nl><f
+== formula: {"visual tokens":464,"prompt tokens":500,"time to first token":"0.80 s","new tokens":166,"decode":"25.0 tok/s","total":"7.41 s"}  vs PyTorch: exact=true NED=0.0000
+   $$\begin{array}{rcl}\binom{\alpha}{n}-\binom{\alpha-1}{n}&=&\frac{1}{n!}\alpha(\alpha-1)(\alpha-2)\dots(\alpha-n+1)\\ &&-\frac{1}{n!}(\alpha-1)(\alpha-2)\dots(\
+== layout: {"visual tokens":1369,"prompt tokens":1396,"time to first token":"2.53 s","new tokens":768,"decode":"22.5 tok/s","total":"36.57 s"}  vs PyTorch: exact=true NED=0.0000 (prefix)
+   <box:796 035 910 067><label:header><up> | <box:088 077 490 105><label:equation><up> | <box:088 110 490 156><label:text><up> | <box:089 164 490 190><label:equation><up
+== code: {"visual tokens":1683,"prompt tokens":1717,"time to first token":"3.21 s","new tokens":366,"decode":"22.5 tok/s","total":"19.40 s"}
+   <_JavaScript_>function canvasApp() { |  |   if (!canvasSupport()) { |           return; |         } |  |   function  drawScreen () { |       context.fillStyle = '#EEEEEE'; |   
+== figure: {"visual tokens":140,"prompt tokens":176,"time to first token":"0.28 s","new tokens":91,"decode":"25.2 tok/s","total":"3.85 s"}
+   <fcel>2016<fcel>24.9%<nl><fcel>2017<fcel>15.0%<nl><fcel>2018<fcel>18.4%<nl><fcel>2019<fcel>20.7%<nl><fcel>2020<fcel>20.7%<nl>
+++ for d in fp32 fp16 q4f16
+++ node browser_test.mjs --dtype fp16 --samples text table formula layout code figure --out ../results/browser_fp16.json
+[console.error] Failed to load resource: the server responded with a status of 404 (File not found)
+browser: Chrome/154.0.8037.97 {"webgpu":true,"vendor":"amd","arch":"rdna-3","description":"","f16":true,"maxBuffer":4294967292,"maxStorageBinding":4294967292,"maxStorageBuffersPerStage":16}
+== text: {"visual tokens":238,"prompt tokens":268,"time to first token":"0.39 s","new tokens":66,"decode":"32.5 tok/s","total":"2.39 s"}  vs PyTorch: exact=true NED=0.0000
+   Hybrid methods may be required to solve particularly difficult real-world optimization problems. Implementation of hybrid methods typically requires non-trivial
+== table: {"visual tokens":102,"prompt tokens":140,"time to first token":"0.15 s","new tokens":283,"decode":"32.4 tok/s","total":"8.84 s"}  vs PyTorch: exact=false NED=0.0023
+   <fcel>表8 出厂检验和型式检验项目<lcel><lcel><lcel><lcel><nl><fcel>要求的条文指标名称<lcel><fcel>对位的试验方法条文<fcel>出厂检验<fcel>型式检验<nl><fcel>4.1 外现<lcel><fcel>5.1 外观检查<fcel>√<fcel>√<nl><f
+== formula: {"visual tokens":464,"prompt tokens":500,"time to first token":"0.50 s","new tokens":166,"decode":"32.4 tok/s","total":"5.60 s"}  vs PyTorch: exact=true NED=0.0000
+   $$\begin{array}{rcl}\binom{\alpha}{n}-\binom{\alpha-1}{n}&=&\frac{1}{n!}\alpha(\alpha-1)(\alpha-2)\dots(\alpha-n+1)\\ &&-\frac{1}{n!}(\alpha-1)(\alpha-2)\dots(\
+== layout: {"visual tokens":1369,"prompt tokens":1396,"time to first token":"1.66 s","new tokens":768,"decode":"29.3 tok/s","total":"27.85 s"}  vs PyTorch: exact=true NED=0.0000 (prefix)
+   <box:796 035 910 067><label:header><up> | <box:088 077 490 105><label:equation><up> | <box:088 110 490 156><label:text><up> | <box:089 164 490 190><label:equation><up
+== code: {"visual tokens":1683,"prompt tokens":1717,"time to first token":"2.10 s","new tokens":366,"decode":"28.8 tok/s","total":"14.77 s"}
+   <_JavaScript_>function canvasApp() { |  |   if (!canvasSupport()) { |           return; |         } |  |   function  drawScreen () { |       context.fillStyle = '#EEEEEE'; |   
+== figure: {"visual tokens":140,"prompt tokens":176,"time to first token":"0.18 s","new tokens":91,"decode":"32.7 tok/s","total":"2.94 s"}
+   <fcel>2016<fcel>24.9%<nl><fcel>2017<fcel>15.0%<nl><fcel>2018<fcel>18.4%<nl><fcel>2019<fcel>20.7%<nl><fcel>2020<fcel>20.7%<nl>
+++ for d in fp32 fp16 q4f16
+++ node browser_test.mjs --dtype q4f16 --samples text table formula layout code figure --out ../results/browser_q4f16.json
+[console.error] Failed to load resource: the server responded with a status of 404 (File not found)
+browser: Chrome/154.0.8037.97 {"webgpu":true,"vendor":"amd","arch":"rdna-3","description":"","f16":true,"maxBuffer":4294967292,"maxStorageBinding":4294967292,"maxStorageBuffersPerStage":16}
+== text: {"visual tokens":238,"prompt tokens":268,"time to first token":"0.38 s","new tokens":66,"decode":"78.7 tok/s","total":"1.20 s"}  vs PyTorch: exact=true NED=0.0000
+   Hybrid methods may be required to solve particularly difficult real-world optimization problems. Implementation of hybrid methods typically requires non-trivial
+== table: {"visual tokens":102,"prompt tokens":140,"time to first token":"0.14 s","new tokens":283,"decode":"88.7 tok/s","total":"3.32 s"}  vs PyTorch: exact=false NED=0.0023
+   <fcel>表8 出厂检验和型式检验项目<lcel><lcel><lcel><lcel><nl><fcel>要求的条文指标名称<lcel><fcel>对位的试验方法条文<fcel>出厂检验<fcel>型式检验<nl><fcel>4.1 外现<lcel><fcel>5.1 外观检查<fcel>√<fcel>√<nl><f
+== formula: {"visual tokens":464,"prompt tokens":500,"time to first token":"0.61 s","new tokens":166,"decode":"88.6 tok/s","total":"2.47 s"}  vs PyTorch: exact=true NED=0.0000
+   $$\begin{array}{rcl}\binom{\alpha}{n}-\binom{\alpha-1}{n}&=&\frac{1}{n!}\alpha(\alpha-1)(\alpha-2)\dots(\alpha-n+1)\\ &&-\frac{1}{n!}(\alpha-1)(\alpha-2)\dots(\
+== layout: {"visual tokens":1369,"prompt tokens":1396,"time to first token":"1.64 s","new tokens":768,"decode":"65.0 tok/s","total":"13.44 s"}  vs PyTorch: exact=true NED=0.0000 (prefix)
+   <box:796 035 910 067><label:header><up> | <box:088 077 490 105><label:equation><up> | <box:088 110 490 156><label:text><up> | <box:089 164 490 190><label:equation><up
+== code: {"visual tokens":1683,"prompt tokens":1717,"time to first token":"2.10 s","new tokens":366,"decode":"65.2 tok/s","total":"7.70 s"}
+   <_JavaScript_>function canvasApp() { |  |   if (!canvasSupport()) { |           return; |         } |  |   function  drawScreen () { |       context.fillStyle = '#EEEEEE'; |   
+== figure: {"visual tokens":140,"prompt tokens":176,"time to first token":"0.18 s","new tokens":91,"decode":"77.7 tok/s","total":"1.34 s"}
+   <fcel>2016<fcel>24.9%<nl><fcel>2017<fcel>12.6%<nl><fcel>2018<fcel>18.4%<nl><fcel>2019<fcel>20.7%<nl><fcel>2020<fcel>24.9%<nl>

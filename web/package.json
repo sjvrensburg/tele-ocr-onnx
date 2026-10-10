@@ -1,0 +1,23 @@
+{
+  "name": "tele-ocr-onnx-web",
+  "version": "1.0.0",
+  "description": "WebGPU tests and demo for the TeleOCR ONNX conversion",
+  "scripts": {
+    "serve": "python3 serve.py",
+    "verify:webgpu": "node verify_webgpu.mjs --vision \"\" _fp16 --decoder \"\" _fp16 _q4f16",
+    "e2e": "node e2e_transformers.mjs",
+    "browser": "node browser_test.mjs",
+    "placement": "node placement_report.mjs ../output/onnx/*.onnx"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@huggingface/transformers": "4.3.0",
+    "onnxruntime-node": "1.30.0",
+    "onnxruntime-web": "1.30.0"
+  },
+  "type": "module",
+  "devDependencies": {
+    "puppeteer-core": "25.12.0"
+  },
+  "private": true
+}

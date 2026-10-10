@@ -1,0 +1,8 @@
+.venv/
+models/
+output/
+output_prev/
+build/
+golden/
+web/node_modules/
+__pycache__/
